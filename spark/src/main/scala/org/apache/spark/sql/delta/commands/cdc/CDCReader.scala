@@ -875,16 +875,15 @@ trait CDCReaderImpl extends DeltaLogging {
     val changesWithinRange = deltaLog.getChanges(start).takeWhile { case (version, _) =>
       version <= end
     }
-    changesToDF(
+    val cdcInfo = changesToDF(
       readSchemaSnapshot.getOrElse(deltaLog.unsafeVolatileSnapshot),
       start,
       end,
       changesWithinRange,
       spark,
       isStreaming = false,
-      useCoarseGrainedCDC = useCoarseGrainedCDC,
-      startVersionSnapshot = startVersionSnapshot)
-      .fileChangeDf
+      useCoarseGrainedCDC)
+    cdcInfo.fileChangeDf
   }
 
   /**
@@ -899,11 +898,11 @@ trait CDCReaderImpl extends DeltaLogging {
       isStreaming: Boolean = false): DataFrame = {
 
     val relation = HadoopFsRelation(
-      index,
-      index.partitionSchema,
-      cdcReadSchema(index.schema),
+      location = index,
+      partitionSchema = index.partitionSchema,
+      dataSchema = cdcReadSchema(index.schema),
       bucketSpec = None,
-      new DeltaParquetFileFormat(index.protocol, index.metadata),
+      fileFormat = index.deltaLog.fileFormat(index.protocol, index.metadata),
       options = index.deltaLog.options)(spark)
     val plan = LogicalRelation(relation, isStreaming = isStreaming)
     Dataset.ofRows(spark, plan)

@@ -58,8 +58,10 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
   def getAutoCompactType(conf: SQLConf, metadata: Metadata): Option[AutoCompactType] = {
     // If user-facing conf is set to something, use that value.
     val autoCompactTypeFromConf =
-      conf.getConf(DeltaSQLConf.DELTA_AUTO_COMPACT_ENABLED).map(AutoCompactType(_))
-    if (autoCompactTypeFromConf.nonEmpty) return autoCompactTypeFromConf.get
+      conf.getConf(DeltaSQLConf.DELTA_AUTO_COMPACT_ENABLED).map(AutoCompactType.apply)
+    autoCompactTypeFromConf.foreach { autoCompactType =>
+      return autoCompactType
+    }
 
     // If user-facing conf is not set, use what table property says.
     val deprecatedFlag = DeltaConfigs.AUTO_OPTIMIZE.fromMetaData(metadata)
@@ -91,8 +93,7 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
     // Skip Auto Compaction, if one of the following conditions is satisfied:
     // -- Auto Compaction is not enabled.
     // -- Transaction execution time is empty, which means the parent transaction is not committed.
-      !AutoCompactUtils.isQualifiedForAutoCompact(spark, txn)
-
+    !AutoCompactUtils.isQualifiedForAutoCompact(spark, txn)
   }
 
   override def run(
@@ -103,7 +104,7 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
       actions: Seq[Action]): Unit = {
     val conf = spark.sessionState.conf
     val autoCompactTypeOpt = getAutoCompactType(conf, postCommitSnapshot.metadata)
-    // Skip Auto Compact if current transaction is not qualified or the table is not qualified
+    // Skip Auto Compact if the current transaction is not qualified or the table is not qualified
     // based on the value of autoCompactTypeOpt.
     if (shouldSkipAutoCompact(autoCompactTypeOpt, spark, txn)) return
     compactIfNecessary(
@@ -123,8 +124,7 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
       txn: OptimisticTransactionImpl,
       postCommitSnapshot: Snapshot,
       opType: String,
-      maxDeletedRowsRatio: Option[Double]
-  ): Seq[OptimizeMetrics] = {
+      maxDeletedRowsRatio: Option[Double]): Seq[OptimizeMetrics] = {
     val tableId = txn.deltaLog.tableId
     val autoCompactRequest = AutoCompactUtils.prepareAutoCompactRequest(
       spark,
@@ -133,41 +133,38 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
       txn.partitionsAddedToOpt.map(_.toSet),
       opType,
       maxDeletedRowsRatio)
-    if (autoCompactRequest.shouldCompact) {
-      try {
-        val metrics = AutoCompact
-          .compact(
-            spark,
-            txn.deltaLog,
-            txn.catalogTable,
-            autoCompactRequest.targetPartitionsPredicate,
-            opType,
-            maxDeletedRowsRatio
-          )
-        val partitionsStats = AutoCompactPartitionStats.instance(spark)
-        // Mark partitions as compacted before releasing them.
-        // Otherwise an already compacted partition might get picked up by a concurrent thread.
-        // But only marks it as compacted, if no exception was thrown by auto compaction so that the
-        // partitions stay eligible for subsequent auto compactions.
-        partitionsStats.markPartitionsAsCompacted(
+    if (!autoCompactRequest.shouldCompact) return Seq.empty[OptimizeMetrics]
+    try {
+      val metrics = AutoCompact
+        .compact(
+          spark,
+          txn.deltaLog,
+          txn.catalogTable,
+          autoCompactRequest.targetPartitionsPredicate,
+          opType,
+          maxDeletedRowsRatio
+        )
+      val partitionsStats = AutoCompactPartitionStats.instance(spark)
+      // Mark partitions as compacted before releasing them.
+      // Otherwise an already compacted partition might get picked up by a concurrent thread.
+      // But only marks it as compacted, if no exception was thrown by auto compaction so that the
+      // partitions stay eligible for subsequent auto compactions.
+      partitionsStats.markPartitionsAsCompacted(
+        tableId,
+        autoCompactRequest.allowedPartitions
+      )
+      metrics
+    } catch {
+      case e: Throwable =>
+        logError("Auto Compaction failed with: " + e.getMessage)
+        throw e
+    } finally {
+      if (AutoCompactUtils.reservePartitionEnabled(spark)) {
+        AutoCompactPartitionReserve.releasePartitions(
           tableId,
           autoCompactRequest.allowedPartitions
         )
-        metrics
-      } catch {
-        case e: Throwable =>
-          logError("Auto Compaction failed with: " + e.getMessage)
-          throw e
-      } finally {
-        if (AutoCompactUtils.reservePartitionEnabled(spark)) {
-          AutoCompactPartitionReserve.releasePartitions(
-            tableId,
-            autoCompactRequest.allowedPartitions
-          )
-        }
       }
-    } else {
-      Seq.empty[OptimizeMetrics]
     }
   }
 

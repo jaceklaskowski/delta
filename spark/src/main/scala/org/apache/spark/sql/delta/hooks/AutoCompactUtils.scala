@@ -87,6 +87,9 @@ object AutoCompactUtils extends DeltaLogging {
   def isModifiedPartitionsOnlyAutoCompactEnabled(spark: SparkSession): Boolean =
     spark.sessionState.conf.getConf(DELTA_AUTO_COMPACT_MODIFIED_PARTITIONS_ONLY_ENABLED)
 
+  def isNonBlindAppendAutoCompactEnabled(spark: SparkSession): Boolean =
+    spark.sessionState.conf.getConf(DELTA_AUTO_COMPACT_NON_BLIND_APPEND_ENABLED)
+
   def reservePartitionEnabled(spark: SparkSession): Boolean =
     spark.sessionState.conf.getConf(DELTA_AUTO_COMPACT_RESERVE_PARTITIONS_ENABLED)
 
@@ -338,9 +341,7 @@ object AutoCompactUtils extends DeltaLogging {
     // If modified partitions only mode is not enabled, return true to avoid subsequent checking.
     if (!isModifiedPartitionsOnlyAutoCompactEnabled(spark)) return true
 
-    val nonBlindAppendAutoCompactEnabled =
-      spark.sessionState.conf.getConf(DeltaSQLConf.DELTA_AUTO_COMPACT_NON_BLIND_APPEND_ENABLED)
-    !(nonBlindAppendAutoCompactEnabled && txn.isBlindAppend)
+    !(isNonBlindAppendAutoCompactEnabled(spark) && txn.isBlindAppend)
   }
 
 }

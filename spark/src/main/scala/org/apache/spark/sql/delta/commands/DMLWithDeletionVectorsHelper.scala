@@ -76,8 +76,10 @@ object DMLWithDeletionVectorsHelper extends DeltaCommand {
    * @param target the logical plan in which we replace the file index
    * @param fileIndex the new file index
    */
-  private def replaceFileIndex(target: LogicalPlan, fileIndex: TahoeFileIndex): LogicalPlan = {
-    val rowIndexCol = AttributeReference(ROW_INDEX_COLUMN_NAME, ROW_INDEX_STRUCT_FILED.dataType)();
+  private def replaceFileIndex(
+      target: LogicalPlan,
+      fileIndex: TahoeFileIndex): LogicalPlan = {
+    val rowIndexCol = AttributeReference(ROW_INDEX_COLUMN_NAME, ROW_INDEX_STRUCT_FIELD.dataType)()
     var fileMetadataCol: AttributeReference = null
 
     val newTarget = target.transformUp {
@@ -85,7 +87,7 @@ object DMLWithDeletionVectorsHelper extends DeltaCommand {
         hfsr @ HadoopFsRelation(_, _, _, _, format: DeltaParquetFileFormat, _), _, _, _) =>
         fileMetadataCol = format.createFileMetadataCol()
         // Take the existing schema and add additional metadata columns
-        val newDataSchema = StructType(hfsr.dataSchema).add(ROW_INDEX_STRUCT_FILED)
+        val newDataSchema = StructType(hfsr.dataSchema).add(ROW_INDEX_STRUCT_FIELD)
         val finalOutput = l.output ++ Seq(rowIndexCol, fileMetadataCol)
         // Disable splitting and filter pushdown in order to generate the row-indexes
         val newFormat = format.copy(isSplittable = false, disablePushDowns = true)
@@ -174,8 +176,8 @@ object DMLWithDeletionVectorsHelper extends DeltaCommand {
       spark: SparkSession,
       touchedFiles: Seq[TouchedFileWithDV],
       snapshot: Snapshot): (Seq[FileAction], Map[String, Long]) = {
-    val numModifiedRows: Long = touchedFiles.map(_.numberOfModifiedRows).sum
-    val numRemovedFiles: Long = touchedFiles.count(_.isFullyReplaced())
+    val numModifiedRows = touchedFiles.map(_.numberOfModifiedRows).sum.toLong
+    val numRemovedFiles = touchedFiles.count(_.isFullyReplaced()).toLong
 
     val (fullyRemovedFiles, notFullyRemovedFiles) = touchedFiles.partition(_.isFullyReplaced())
 
@@ -374,7 +376,7 @@ object DeletionVectorBitmapGenerator {
       .withColumn(FILE_NAME_COL, fileNameColumn)
       // Filter after getting input file name as the filter might introduce a join and we
       // cannot get input file name on join's output.
-      .filter(new Column(condition))
+      .filter(Column(condition))
       .withColumn(ROW_INDEX_COL, rowIndexColumn)
 
     val df = if (tableHasDVs) {
