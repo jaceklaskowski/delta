@@ -16,7 +16,6 @@
 
 package org.apache.spark.sql.delta.hooks
 
-import org.apache.spark.sql.delta.skipping.clustering.ClusteredTableUtils
 import org.apache.spark.sql.delta._
 import org.apache.spark.sql.delta.actions._
 import org.apache.spark.sql.delta.commands.{DeltaOptimizeContext, OptimizeExecutor}
@@ -55,11 +54,16 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
    *   3. Then we check the table property [[DeltaConfigs.AUTO_COMPACT]].
    *   4. If none of 1/2/3 are set explicitly, then we return None
    */
-  def getAutoCompactType(conf: SQLConf, metadata: Metadata): Option[AutoCompactType] = {
+  def getAutoCompactType(
+      conf: SQLConf,
+      metadata: Metadata): Option[AutoCompactType] = {
     // If user-facing conf is set to something, use that value.
-    val autoCompactTypeFromConf =
-      conf.getConf(DeltaSQLConf.DELTA_AUTO_COMPACT_ENABLED).map(AutoCompactType(_))
-    if (autoCompactTypeFromConf.nonEmpty) return autoCompactTypeFromConf.get
+    val autoCompactTypeFromConf = conf
+      .getConf(DeltaSQLConf.DELTA_AUTO_COMPACT_ENABLED)
+      .map(AutoCompactType.apply)
+    autoCompactTypeFromConf.foreach { autoCompactType =>
+      return autoCompactType
+    }
 
     // If user-facing conf is not set, use what table property says.
     val deprecatedFlag = DeltaConfigs.AUTO_OPTIMIZE.fromMetaData(metadata)
@@ -91,8 +95,7 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
     // Skip Auto Compaction, if one of the following conditions is satisfied:
     // -- Auto Compaction is not enabled.
     // -- Transaction execution time is empty, which means the parent transaction is not committed.
-      !AutoCompactUtils.isQualifiedForAutoCompact(spark, txn)
-
+    !AutoCompactUtils.isQualifiedForAutoCompact(spark, txn)
   }
 
   override def run(
@@ -103,15 +106,15 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
       actions: Seq[Action]): Unit = {
     val conf = spark.sessionState.conf
     val autoCompactTypeOpt = getAutoCompactType(conf, postCommitSnapshot.metadata)
-    // Skip Auto Compact if current transaction is not qualified or the table is not qualified
+    // Skip Auto Compact if the current transaction is not qualified or the table is not qualified
     // based on the value of autoCompactTypeOpt.
     if (shouldSkipAutoCompact(autoCompactTypeOpt, spark, txn)) return
     compactIfNecessary(
-        spark,
-        txn,
-        postCommitSnapshot,
-        OP_TYPE,
-        maxDeletedRowsRatio = None)
+      spark,
+      txn,
+      postCommitSnapshot,
+      OP_TYPE,
+      maxDeletedRowsRatio = None)
   }
 
   /**
@@ -123,8 +126,7 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
       txn: OptimisticTransactionImpl,
       postCommitSnapshot: Snapshot,
       opType: String,
-      maxDeletedRowsRatio: Option[Double]
-  ): Seq[OptimizeMetrics] = {
+      maxDeletedRowsRatio: Option[Double]): Seq[OptimizeMetrics] = {
     val tableId = txn.deltaLog.tableId
     val autoCompactRequest = AutoCompactUtils.prepareAutoCompactRequest(
       spark,
@@ -133,89 +135,85 @@ trait AutoCompactBase extends PostCommitHook with DeltaLogging {
       txn.partitionsAddedToOpt.map(_.toSet),
       opType,
       maxDeletedRowsRatio)
-    if (autoCompactRequest.shouldCompact) {
-      try {
-        val metrics = AutoCompact
-          .compact(
-            spark,
-            txn.deltaLog,
-            txn.catalogTable,
-            autoCompactRequest.targetPartitionsPredicate,
-            opType,
-            maxDeletedRowsRatio
-          )
-        val partitionsStats = AutoCompactPartitionStats.instance(spark)
-        // Mark partitions as compacted before releasing them.
-        // Otherwise an already compacted partition might get picked up by a concurrent thread.
-        // But only marks it as compacted, if no exception was thrown by auto compaction so that the
-        // partitions stay eligible for subsequent auto compactions.
-        partitionsStats.markPartitionsAsCompacted(
+    if (!autoCompactRequest.shouldCompact) return Seq.empty[OptimizeMetrics]
+    try {
+      val metrics = AutoCompact
+        .compact(
+          spark,
+          txn.deltaLog,
+          txn.catalogTable,
+          autoCompactRequest.targetPartitionsPredicate,
+          opType,
+          maxDeletedRowsRatio
+        )
+      val partitionsStats = AutoCompactPartitionStats.instance(spark)
+      // Mark partitions as compacted before releasing them.
+      // Otherwise an already compacted partition might get picked up by a concurrent thread.
+      // But only marks it as compacted, if no exception was thrown by auto compaction so that the
+      // partitions stay eligible for subsequent auto compactions.
+      partitionsStats.markPartitionsAsCompacted(
+        tableId,
+        autoCompactRequest.allowedPartitions
+      )
+      metrics
+    } catch {
+      case e: Throwable =>
+        logError("Auto Compaction failed with: " + e.getMessage)
+        throw e
+    } finally {
+      if (AutoCompactUtils.reservePartitionEnabled(spark)) {
+        AutoCompactPartitionReserve.releasePartitions(
           tableId,
           autoCompactRequest.allowedPartitions
         )
-        metrics
-      } catch {
-        case e: Throwable =>
-          logError("Auto Compaction failed with: " + e.getMessage)
-          recordDeltaEvent(
-            txn.deltaLog,
-            opType = "delta.autoCompaction.error",
-            data = getErrorData(e))
-          throw e
-      } finally {
-        if (AutoCompactUtils.reservePartitionEnabled(spark)) {
-          AutoCompactPartitionReserve.releasePartitions(
-            tableId,
-            autoCompactRequest.allowedPartitions
-          )
-        }
       }
-    } else {
-      Seq.empty[OptimizeMetrics]
     }
   }
 
 
   /**
    * Launch Auto Compaction jobs if there is sufficient capacity.
-   * @param spark The spark session of the parent transaction that triggers this Auto Compaction.
+   *
+   * @param spark    The spark session of the parent transaction that triggers this Auto Compaction.
    * @param deltaLog The delta log of the parent transaction.
    * @return the optimize metrics of this compaction job.
    */
   private[delta] def compact(
-      spark: SparkSession,
-      deltaLog: DeltaLog,
-      catalogTable: Option[CatalogTable],
-      partitionPredicates: Seq[Expression] = Nil,
-      opType: String = OP_TYPE,
-      maxDeletedRowsRatio: Option[Double] = None)
-  : Seq[OptimizeMetrics] = recordDeltaOperation(deltaLog, opType) {
-    val maxFileSize = spark.conf.get(DeltaSQLConf.DELTA_AUTO_COMPACT_MAX_FILE_SIZE)
-    val minFileSizeOpt = Some(spark.conf.get(DeltaSQLConf.DELTA_AUTO_COMPACT_MIN_FILE_SIZE)
-      .getOrElse(maxFileSize / 2))
-    val maxFileSizeOpt = Some(maxFileSize)
-    recordDeltaOperation(deltaLog, s"$opType.execute") {
-      val txn = deltaLog.startTransaction(catalogTable)
-      val optimizeContext = DeltaOptimizeContext(
-        reorg = None,
-        minFileSizeOpt,
-        maxFileSizeOpt,
-        maxDeletedRowsRatio = maxDeletedRowsRatio
-      )
-      val rows = new OptimizeExecutor(spark, txn, partitionPredicates, Seq(), true, optimizeContext)
-        .optimize()
-      val metrics = rows.map(_.getAs[OptimizeMetrics](1))
-      recordDeltaEvent(deltaLog, s"$opType.execute.metrics", data = metrics.head)
-      metrics
+    spark: SparkSession,
+    deltaLog: DeltaLog,
+    catalogTable: Option[CatalogTable],
+    partitionPredicates: Seq[Expression] = Nil,
+    opType: String = OP_TYPE,
+    maxDeletedRowsRatio: Option[Double] = None): Seq[OptimizeMetrics] = {
+    recordDeltaOperation(deltaLog, opType) {
+      val maxFileSize = spark.conf.get(DeltaSQLConf.DELTA_AUTO_COMPACT_MAX_FILE_SIZE)
+      val minFileSizeOpt = Some(spark.conf.get(DeltaSQLConf.DELTA_AUTO_COMPACT_MIN_FILE_SIZE)
+        .getOrElse(maxFileSize / 2))
+      val maxFileSizeOpt = Some(maxFileSize)
+      recordDeltaOperation(deltaLog, s"$opType.execute") {
+        val txn = deltaLog.startTransaction(catalogTable)
+        val optimizeContext = DeltaOptimizeContext(
+          reorg = None,
+          minFileSizeOpt,
+          maxFileSizeOpt,
+          maxDeletedRowsRatio = maxDeletedRowsRatio
+        )
+        val rows = new OptimizeExecutor(
+          spark, txn, partitionPredicates, Seq(), true, optimizeContext)
+          .optimize()
+        val metrics = rows.map(_.getAs[OptimizeMetrics](1))
+        recordDeltaEvent(deltaLog, s"$opType.execute.metrics", data = metrics.head)
+        metrics
+      }
     }
   }
-
 }
 
 /**
  * Post commit hook for Auto Compaction.
  */
 case object AutoCompact extends AutoCompactBase
+
 /**
  * A trait describing the type of Auto Compaction.
  */

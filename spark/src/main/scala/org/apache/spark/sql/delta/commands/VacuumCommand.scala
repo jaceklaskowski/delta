@@ -299,7 +299,10 @@ object VacuumCommand extends VacuumCommandImpl with Serializable {
                       fileStatus.length))
                 }
               }
-            }.groupBy(col("path")).agg(count(new Column("*")).as("count"),
+            }
+            .groupBy(col("path"))
+            .agg(
+              count(new Column("*")).as("count"),
               sum("length").as("length"))
             .join(validFiles, Seq("path"), "leftanti")
             .where(col("count") === 1)
@@ -598,8 +601,7 @@ trait VacuumCommandImpl extends DeltaCommand {
       action: FileAction,
       fs: FileSystem,
       basePath: Path,
-      relativizeIgnoreError: Boolean
-  ): Seq[String] = {
+      relativizeIgnoreError: Boolean): Seq[String] = {
     val paths = getActionRelativePath(action, fs, basePath, relativizeIgnoreError)
       .map {
         relativePath =>

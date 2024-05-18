@@ -139,8 +139,7 @@ trait CloneTableBaseUtils extends DeltaLogging
       opName: String,
       datasetOfNewFilesToAdd: Dataset[AddFile],
       qualifiedSourceTableBasePath: String,
-      destTable: DeltaLog
-  ): Dataset[AddFile] = {
+      destTable: DeltaLog): Dataset[AddFile] = {
     recordDeltaOperation(destTable, s"delta.${opName.toLowerCase()}.makeAbsolute") {
       val absolutePaths = DeltaFileOperations.makePathsAbsolute(
         qualifiedSourceTableBasePath,
@@ -156,8 +155,7 @@ abstract class CloneTableBase(
     targetPath: Path)
   extends LeafCommand
   with CloneTableBaseUtils
-  with SQLConfHelper
-{
+  with SQLConfHelper {
 
   import CloneTableBase._
   def dataChangeInFileAction: Boolean = true

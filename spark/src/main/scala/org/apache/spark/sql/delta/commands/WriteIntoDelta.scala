@@ -82,8 +82,7 @@ case class WriteIntoDelta(
     override val configuration: Map[String, String],
     override val data: DataFrame,
     val catalogTableOpt: Option[CatalogTable] = None,
-    schemaInCatalog: Option[StructType] = None
-    )
+    schemaInCatalog: Option[StructType] = None)
   extends LeafRunnableCommand
   with ImplicitMetadataOperation
   with DeltaCommand

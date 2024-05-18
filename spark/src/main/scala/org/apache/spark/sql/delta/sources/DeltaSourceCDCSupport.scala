@@ -208,9 +208,7 @@ trait DeltaSourceCDCSupport { self: DeltaSource =>
       endOffset.reservoirVersion,
       groupedFileActions,
       spark,
-      isStreaming = true
-    )
-
+      isStreaming = true)
     cdcInfo.fileChangeDf
   }
 

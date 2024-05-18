@@ -62,8 +62,10 @@ trait StoredBitmap {
  */
 case class DeletionVectorStoredBitmap(
     dvDescriptor: DeletionVectorDescriptor,
-    tableDataPath: Option[Path] = None
-) extends StoredBitmap with DeltaLogging {
+    tableDataPath: Option[Path] = None)
+  extends StoredBitmap
+  with DeltaLogging {
+
   require(tableDataPath.isDefined || !dvDescriptor.isOnDisk,
     "Table path is required for on-disk deletion vectors")
 

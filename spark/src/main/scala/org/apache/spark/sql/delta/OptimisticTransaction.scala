@@ -397,7 +397,7 @@ trait OptimisticTransactionImpl extends TransactionalWrite
   def txnExecutionTimeMs: Option[Long] = if (commitEndNano == -1) {
     None
   } else {
-    Some(NANOSECONDS.toMillis((commitEndNano - txnStartNano)))
+    Some(NANOSECONDS.toMillis(commitEndNano - txnStartNano))
   }
 
   /** Gets the stats collector for the table at the snapshot this transaction has. */
@@ -1073,8 +1073,7 @@ trait OptimisticTransactionImpl extends TransactionalWrite
       actions: Seq[Action],
       op: DeltaOperations.Operation,
       canSkipEmptyCommits: Boolean,
-      tags: Map[String, String]
-  ): Option[Long] = recordDeltaOperation(deltaLog, "delta.commit") {
+      tags: Map[String, String]): Option[Long] = recordDeltaOperation(deltaLog, "delta.commit") {
     commitStartNano = System.nanoTime()
 
     val (version, postCommitSnapshot, actualCommittedActions) = try {
@@ -2088,8 +2087,7 @@ trait OptimisticTransactionImpl extends TransactionalWrite
   protected def writeCommitFile(
       attemptVersion: Long,
       jsonActions: Iterator[String],
-      currentTransactionInfo: CurrentTransactionInfo)
-      : (Option[VersionChecksum], Commit) = {
+      currentTransactionInfo: CurrentTransactionInfo): (Option[VersionChecksum], Commit) = {
     val commitOwnerClient = readSnapshotTableCommitOwnerClientOpt.getOrElse {
       TableCommitOwnerClient(
         new FileSystemBasedCommitOwnerClient(deltaLog),
@@ -2105,8 +2103,7 @@ trait OptimisticTransactionImpl extends TransactionalWrite
     attemptVersion: Long,
     jsonActions: Iterator[String],
     tableCommitOwnerClient: TableCommitOwnerClient,
-    currentTransactionInfo: CurrentTransactionInfo
-  ): Commit = {
+    currentTransactionInfo: CurrentTransactionInfo): Commit = {
     val updatedActions =
       currentTransactionInfo.getUpdatedActions(snapshot.metadata, snapshot.protocol)
     val commitResponse = tableCommitOwnerClient.commit(attemptVersion, jsonActions, updatedActions)

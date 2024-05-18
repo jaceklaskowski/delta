@@ -101,7 +101,7 @@ you can turn off this safety check by setting the Spark configuration property
 
 #### Inventory Table
 
-An inventory table contains a list of file paths together with their size, type (directory or not), and the last modification time. When an INVENTORY option is provided, VACUUM will consider the files listed there instead of  doing the full listing of the table directory, which can be time consuming for very large tables. The inventory table can be specified as a delta table or a spark SQL query that gives the expected table schema. The schema should be as follows:
+An inventory table contains a list of file paths together with their size, type (directory or not), and the last modification time. When an INVENTORY option is provided, VACUUM will consider the files listed there instead of doing the full listing of the table directory, which can be time-consuming for very large tables. The inventory table can be specified as a delta table or a spark SQL query that gives the expected table schema. The schema should be as follows:
 
 | Column Name      | Type    | Description                             |
 | -----------------| ------- | --------------------------------------- |

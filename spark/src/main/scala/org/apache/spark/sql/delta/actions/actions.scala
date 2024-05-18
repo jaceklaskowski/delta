@@ -1243,7 +1243,7 @@ case class SidecarFile(
     sizeInBytes: Long,
     modificationTime: Long,
     tags: Map[String, String] = null)
-  extends Action with CheckpointOnlyAction {
+  extends CheckpointOnlyAction {
 
   override def wrap: SingleAction = SingleAction(sidecar = this)
 
@@ -1274,7 +1274,7 @@ object SidecarFile {
 case class CheckpointMetadata(
     version: Long,
     tags: Map[String, String] = null)
-  extends Action with CheckpointOnlyAction {
+  extends CheckpointOnlyAction {
 
   override def wrap: SingleAction = SingleAction(checkpointMetadata = this)
 }

@@ -61,7 +61,8 @@ object DomainMetadataUtils extends DeltaLogging {
    * @param actions: Actions the current transaction wants to commit.
    */
   def validateDomainMetadataSupportedAndNoDuplicate(
-      actions: Seq[Action], protocol: Protocol): Seq[DomainMetadata] = {
+      actions: Seq[Action],
+      protocol: Protocol): Seq[DomainMetadata] = {
     val domainMetadatas = extractDomainMetadatasMap(actions)
     if (domainMetadatas.nonEmpty && !domainMetadataSupported(protocol)) {
       throw DeltaErrors.domainMetadataTableFeatureNotSupported(

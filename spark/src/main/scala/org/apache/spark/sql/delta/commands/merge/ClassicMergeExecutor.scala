@@ -515,7 +515,8 @@ trait ClassicMergeExecutor extends MergeOutputGeneration {
       "rightOuter"
     }
 
-    val joinedDF = getMergeSource.df
+    val joinedDF = getMergeSource
+      .df
       .withColumn(SOURCE_ROW_PRESENT_COL, lit(true))
       .join(targetDF, Column(condition), joinType)
 

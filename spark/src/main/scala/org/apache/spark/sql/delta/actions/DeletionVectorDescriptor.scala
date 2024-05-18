@@ -247,8 +247,11 @@ object DeletionVectorDescriptor {
    *
    * Optionally, prepend a `prefix` to the name.
    */
-  def assembleDeletionVectorPath(targetParentPath: Path, id: UUID, prefix: String = ""): Path = {
-    val fileName = s"${DELETION_VECTOR_FILE_NAME_CORE}_${id}.bin"
+  def assembleDeletionVectorPath(
+      targetParentPath: Path,
+      id: UUID,
+      prefix: String = ""): Path = {
+    val fileName = s"${DELETION_VECTOR_FILE_NAME_CORE}_$id.bin"
     if (prefix.nonEmpty) {
       new Path(new Path(targetParentPath, prefix), fileName)
     } else {

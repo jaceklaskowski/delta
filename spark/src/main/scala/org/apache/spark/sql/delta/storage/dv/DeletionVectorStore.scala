@@ -188,8 +188,9 @@ object DeletionVectorStore extends DeletionVectorStoreUtils {
  * Note: This class must be thread-safe,
  * because we sometimes write multiple deletion vectors in parallel through the same store.
  */
-class HadoopFileSystemDVStore(hadoopConf: Configuration)
-    extends DeletionVectorStore {
+class HadoopFileSystemDVStore(
+    hadoopConf: Configuration)
+  extends DeletionVectorStore {
 
   override def read(path: Path, offset: Int, size: Int): RoaringBitmapArray = {
     val fs = path.getFileSystem(hadoopConf)

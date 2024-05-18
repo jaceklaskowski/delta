@@ -5,7 +5,7 @@ orphan: 1
 
 # What are deletion vectors?
 
-.. note:: This feature is available in <Delta> 2.3.0 and above. This feature is in experimental support mode with [_](#limitations).
+.. note:: This feature is available in <Delta> 2.3.0 and above.
 
 Deletion vectors are a storage optimization feature that can be enabled on <Delta> tables. By default, when a single row in a data file is deleted, the entire Parquet file containing the record must be rewritten. With deletion vectors enabled for the table, some Delta operations use deletion vectors to mark existing rows as removed without rewriting the Parquet file. Subsequent reads on the table resolve current table state by applying the deletions noted by deletion vectors to the most recent table version.
 
