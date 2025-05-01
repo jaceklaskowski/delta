@@ -38,6 +38,10 @@ import Checkstyle._
 import Mima._
 import Unidoc._
 
+// Local Maven resolver with Spark 4.0.0 (RC4) jars
+// https://www.scala-sbt.org/1.x/docs/Resolvers.html#Local+Maven+resolvers
+resolvers += Resolver.mavenLocal
+
 // Scala versions
 val scala212 = "2.12.18"
 val scala213 = "2.13.13"
@@ -50,10 +54,10 @@ val all_scala_versions = Seq(scala212, scala213)
 // sbt 'set default_scala_version := 2.13.13' [commands]
 // FIXME Why not use scalaVersion?
 val default_scala_version = settingKey[String]("Default Scala version")
-Global / default_scala_version := scala212
+Global / default_scala_version := scala213
 
 val LATEST_RELEASED_SPARK_VERSION = "3.5.3"
-val SPARK_MASTER_VERSION = "4.0.0-SNAPSHOT"
+val SPARK_MASTER_VERSION = "4.0.0"
 val sparkVersion = settingKey[String]("Spark version")
 spark / sparkVersion := getSparkVersion()
 connectCommon / sparkVersion := getSparkVersion()

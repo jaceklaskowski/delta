@@ -37,9 +37,9 @@ jobs:
             ~/.ivy2
             ~/.cache/coursier
             !~/.cache/coursier/v1/https/repository.apache.org/content/groups/snapshots
-          # Change the key if dependencies are changed. For each key, GitHub Actions will cache the
+          # Change the key if dependencies are changed. For each key, GitHub Actions will cache
           # the above directories when we use the key for the first time. After that, each run will
-          # just use the cache. The cache is immutable so we need to use a new key when trying to
+          # just use the cache. The cache is immutable, so we need to use a new key when trying to
           # cache new stuff.
           key: delta-sbt-cache-spark-master-scala${{ matrix.scala }}
       - name: Install Job dependencies
