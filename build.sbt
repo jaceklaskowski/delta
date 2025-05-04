@@ -51,19 +51,14 @@ val all_scala_versions = Seq(scala212, scala213)
 // It was necessary to change default_scala_version to scala213 in build.sbt
 // to build the project with Scala 2.13 only
 // As a setting, it's possible to set it on command line easily
-// sbt 'set default_scala_version := 2.13.13' [commands]
-// FIXME Why not use scalaVersion?
+// sbt 'set Global / default_scala_version := 2.13.13' [commands]
 val default_scala_version = settingKey[String]("Default Scala version")
 Global / default_scala_version := scala212
 
 val LATEST_RELEASED_SPARK_VERSION = "3.5.3"
 val SPARK_MASTER_VERSION = "4.0.0"
 val sparkVersion = settingKey[String]("Spark version")
-spark / sparkVersion := getSparkVersion()
-connectCommon / sparkVersion := getSparkVersion()
-connectClient / sparkVersion := getSparkVersion()
-connectServer / sparkVersion := getSparkVersion()
-sharing / sparkVersion := getSparkVersion()
+Global / sparkVersion := getSparkVersion()
 
 // Dependent library versions
 val defaultSparkVersion = LATEST_RELEASED_SPARK_VERSION
@@ -169,7 +164,7 @@ lazy val commonSettings = Seq(
 
   testOptions += Tests.Argument("-oF"),
 
-  // Unidoc settings: by default dont document any source file
+  // Unidoc settings: by default don't document any source file
   unidocSourceFilePatterns := Nil,
 )
 
@@ -1605,6 +1600,7 @@ lazy val sparkGroup = project
     crossScalaVersions := Nil,
     publishArtifact := false,
     publish / skip := false,
+    publishLocal / skip := true,
   )
 
 lazy val icebergGroup = project
