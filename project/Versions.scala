@@ -4,6 +4,7 @@ import sbt.{Def, Task}
 object Versions {
   val LATEST_RELEASED_SPARK_VERSION = "3.5.3"
   val SPARK_MASTER_VERSION = "4.0.1-SNAPSHOT"
+  val SPARK_4_RC_VERSION = "4.0.0"
 
   val scala212 = "2.12.18"
   val scala213 = "2.13.13"
@@ -44,6 +45,7 @@ object Versions {
     val allValidSparkVersionInputs = Seq(
       "master",
       "latest",
+      SPARK_4_RC_VERSION,
       SPARK_MASTER_VERSION,
       LATEST_RELEASED_SPARK_VERSION,
       latestReleasedSparkVersionShort
@@ -56,6 +58,8 @@ object Versions {
         LATEST_RELEASED_SPARK_VERSION
       case SPARK_MASTER_VERSION | "master" =>
         SPARK_MASTER_VERSION
+      case SPARK_4_RC_VERSION =>
+        SPARK_4_RC_VERSION
       case _ =>
         throw new IllegalArgumentException(s"Invalid sparkVersion: $input. Must be one of " +
           s"${allValidSparkVersionInputs.mkString("{", ",", "}")}")
@@ -67,7 +71,7 @@ object Versions {
     taskName: String,
     projectName: String,
     emptyValue: => T): Def.Initialize[Task[T]] = {
-    if (getSparkVersion() == SPARK_MASTER_VERSION) {
+    if (getSparkVersion() == SPARK_MASTER_VERSION || getSparkVersion() == SPARK_4_RC_VERSION) {
       Def.task(task.value)
     } else {
       Def.task {

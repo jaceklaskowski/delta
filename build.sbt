@@ -149,8 +149,7 @@ def crossSparkSettings(): Seq[Setting[_]] = getSparkVersion() match {
 
     unidocSourceFilePatterns := Seq(SourceFilePattern("io/delta/tables/", "io/delta/exceptions/"))
   )
-
-  case SPARK_MASTER_VERSION => Seq(
+  case SPARK_MASTER_VERSION | SPARK_4_RC_VERSION => Seq(
     scalaVersion := scala213,
     crossScalaVersions := Seq(scala213),
     targetJvm := "17",
