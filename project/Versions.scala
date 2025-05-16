@@ -3,7 +3,7 @@ import sbt.{Def, Task}
 
 object Versions {
   val LATEST_RELEASED_SPARK_VERSION = "3.5.3"
-  val SPARK_MASTER_VERSION = "4.0.0"
+  val SPARK_MASTER_VERSION = "4.0.1-SNAPSHOT"
 
   val scala212 = "2.12.18"
   val scala213 = "2.13.13"

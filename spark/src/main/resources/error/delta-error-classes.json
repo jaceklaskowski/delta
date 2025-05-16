@@ -359,6 +359,12 @@
     ],
     "sqlState" : "0AKDC"
   },
+  "DELTA_CDC_READ_NULL_RANGE_BOUNDARY" : {
+    "message" : [
+      "CDC read start/end parameters cannot be null. Please provide a valid version or timestamp."
+    ],
+    "sqlState" : "22004"
+  },
   "DELTA_CHANGE_DATA_FEED_INCOMPATIBLE_DATA_SCHEMA" : {
     "message" : [
       "Retrieving table changes between version <start> and <end> failed because of an incompatible data schema.",
@@ -539,6 +545,14 @@
       "Struct column <source> cannot be inserted into a <targetType> field <targetField> in <targetTable>."
     ],
     "sqlState" : "2200G"
+  },
+  "DELTA_COMMAND_INVARIANT_VIOLATION" : {
+    "message" : [
+      "A command internal invariant was violated in '<operation>'.",
+      "Please retry the command.",
+      "Exception reference: <uuid>."
+    ],
+    "sqlState" : "XXKDS"
   },
   "DELTA_COMMIT_INTERMEDIATE_REDIRECT_STATE" : {
     "message" : [
@@ -1988,6 +2002,14 @@
     ],
     "sqlState" : "42P18"
   },
+  "DELTA_NUM_RECORDS_MISMATCH" : {
+    "message" : [
+      "Failed to validate the number of records in <operation>.",
+      "Added <numAddedRecords> records and removed <numRemovedRecords> records.",
+      "This is a bug."
+    ],
+    "sqlState" : "XXKDS"
+  },
   "DELTA_ONEOF_IN_TIMETRAVEL" : {
     "message" : [
       "Please either provide 'timestampAsOf' or 'versionAsOf' for time travel."
@@ -3030,6 +3052,12 @@
       "A gap in the delta log between versions <startVersion> and <endVersion> was detected while trying to load version <versionToLoad>."
     ],
     "sqlState" : "KD00C"
+  },
+  "DELTA_VERSION_INVALID" : {
+    "message" : [
+      "The provided version (<version>) is not a valid version."
+    ],
+    "sqlState" : "42815"
   },
   "DELTA_VIOLATE_CONSTRAINT_WITH_VALUES" : {
     "message" : [

@@ -765,11 +765,7 @@ case class AlterTableChangeColumnDeltaCommand(
       val metadata = txn.metadata
       val bypassCharVarcharToStringFix =
         sparkSession.conf.get(DeltaSQLConf.DELTA_BYPASS_CHARVARCHAR_TO_STRING_FIX)
-      val oldSchema = if (bypassCharVarcharToStringFix) {
-          metadata.schema
-        } else {
-          SchemaUtils.getRawSchemaWithoutCharVarcharMetadata(metadata.schema)
-        }
+      val oldSchema = metadata.schema
       val resolver = sparkSession.sessionState.conf.resolver
 
       columnChanges.foreach(change => {
@@ -792,16 +788,7 @@ case class AlterTableChangeColumnDeltaCommand(
         transformSchema(prevSchema, Some(columnName)) {
           case (`columnPath`, struct @ StructType(fields), _) =>
             val oldColumn = struct(columnName)
-
-            // Analyzer already validates the char/varchar type change of ALTER COLUMN in
-            // `CheckAnalysis.checkAlterTableCommand`. We should normalize char/varchar type
-            // to string type first, then apply Delta-specific checks.
-            val oldColumnForVerification = if (bypassCharVarcharToStringFix) {
-              oldColumn
-            } else {
-              CharVarcharUtils.replaceCharVarcharWithStringInSchema(StructType(Seq(oldColumn))).head
-            }
-            verifyColumnChange(change, sparkSession, oldColumnForVerification, resolver, txn)
+            verifyColumnChange(change, sparkSession, oldColumn, resolver, txn)
 
             val newField = {
               if (change.syncIdentity) {
@@ -828,13 +815,10 @@ case class AlterTableChangeColumnDeltaCommand(
                   case Some(newDefaultValue) => result.withCurrentDefaultValue(newDefaultValue)
                   case None => result.clearCurrentDefaultValue()
                 }
-
-                result
-                  .copy(
-                    name = newColumn.name,
-                    dataType =
-                      SchemaUtils.changeDataType(oldColumn.dataType, newColumn.dataType, resolver),
-                    nullable = newColumn.nullable)
+                result = SchemaUtils.changeFieldDataTypeCharVarcharSafe(result, newColumn, resolver)
+                result.copy(
+                  name = newColumn.name,
+                  nullable = newColumn.nullable)
               }
             }
 
@@ -854,39 +838,34 @@ case class AlterTableChangeColumnDeltaCommand(
           case (`columnPath`, m: MapType, _) if columnName == "key" =>
             val originalField = StructField(columnName, m.keyType, nullable = false)
             verifyMapArrayChange(change, sparkSession, originalField, resolver, txn)
-            m.copy(keyType = SchemaUtils.changeDataType(m.keyType, newColumn.dataType, resolver))
+            val fieldWithNewDataType = SchemaUtils.changeFieldDataTypeCharVarcharSafe(
+              originalField, newColumn, resolver)
+            m.copy(keyType = fieldWithNewDataType.dataType)
 
           case (`columnPath`, m: MapType, _) if columnName == "value" =>
             val originalField = StructField(columnName, m.valueType, nullable = m.valueContainsNull)
             verifyMapArrayChange(change, sparkSession, originalField, resolver, txn)
-            m.copy(
-              valueType = SchemaUtils.changeDataType(m.valueType, newColumn.dataType, resolver))
+            val fieldWithNewDataType = SchemaUtils.changeFieldDataTypeCharVarcharSafe(
+              originalField, newColumn, resolver)
+            m.copy(valueType = fieldWithNewDataType.dataType)
 
           case (`columnPath`, a: ArrayType, _) if columnName == "element" =>
             val originalField = StructField(columnName, a.elementType, nullable = a.containsNull)
             verifyMapArrayChange(change, sparkSession, originalField, resolver, txn)
-            a.copy(elementType =
-              SchemaUtils.changeDataType(a.elementType, newColumn.dataType, resolver))
+            val fieldWithNewDataType = SchemaUtils.changeFieldDataTypeCharVarcharSafe(
+              originalField, newColumn, resolver)
+            a.copy(elementType = fieldWithNewDataType.dataType)
 
           case (_, other @ (_: StructType | _: ArrayType | _: MapType), _) => other
         }
       }
 
       val transformedSchema = columnChanges.foldLeft(oldSchema)(transformSchemaOnce)
-      val newSchema = if (bypassCharVarcharToStringFix) {
-        transformedSchema
-      } else {
-        // Fields with type CHAR/VARCHAR had been converted from
-        // (StringType, metadata = 'VARCHAR(n)') into (VARCHAR(n), metadata = '')
-        // so that CHAR/VARCHAR to String conversion can be handled correctly. We should
-        // invert this conversion so that downstream operations are not affected.
-        CharVarcharUtils.replaceCharVarcharWithStringInSchema(transformedSchema)
-      }
 
       val newSchemaWithTypeWideningMetadata =
         TypeWideningMetadata.addTypeWideningMetadata(
           txn,
-          schema = newSchema,
+          schema = transformedSchema,
           oldSchema = metadata.schema)
 
       val metadataWithNewSchema = metadata.copy(

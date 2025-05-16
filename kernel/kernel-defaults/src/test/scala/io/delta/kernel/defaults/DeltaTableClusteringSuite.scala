@@ -49,7 +49,7 @@ class DeltaTableClusteringSuite extends DeltaTableWriteSuiteBase {
   private def verifyClusteringDomainMetadata(
       snapshot: SnapshotImpl,
       expectedDomainMetadata: DomainMetadata = testingDomainMetadata): Unit = {
-    assert(snapshot.getDomainMetadataMap.get(ClusteringMetadataDomain.DOMAIN_NAME)
+    assert(snapshot.getActiveDomainMetadataMap.get(ClusteringMetadataDomain.DOMAIN_NAME)
       == expectedDomainMetadata)
     // verifyChecksum will check the domain metadata in CRC against the latest snapshot.
     verifyChecksum(snapshot.getDataPath.toString)
@@ -289,6 +289,32 @@ class DeltaTableClusteringSuite extends DeltaTableWriteSuiteBase {
       }
       assert(
         ex.getMessage.contains("Column 'column(`non-exist`)' was not found in the table schema"))
+    }
+  }
+
+  test("update a partitioned table with clustering columns should fail") {
+    withTempDirAndEngine { (tablePath, engine) =>
+      createEmptyTable(engine, tablePath, testPartitionSchema, partCols = testPartitionColumns)
+      // test case 1: update with non-empty clustering columns
+      val ex1 = intercept[KernelException] {
+        updateTableMetadata(
+          engine,
+          tablePath,
+          clusteringColsOpt = Some(List(new Column("non-exist"))))
+      }
+      assert(
+        ex1.getMessage.contains("Cannot enable clustering on a partitioned table"))
+
+      // test case 2: update with empty clustering columns,
+      // this would still be regarded as enabling clustering
+      val ex2 = intercept[KernelException] {
+        updateTableMetadata(
+          engine,
+          tablePath,
+          clusteringColsOpt = Some(List()))
+      }
+      assert(
+        ex2.getMessage.contains("Cannot enable clustering on a partitioned table"))
     }
   }
 

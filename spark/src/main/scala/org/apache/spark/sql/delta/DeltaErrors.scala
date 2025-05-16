@@ -19,7 +19,7 @@ package org.apache.spark.sql.delta
 // scalastyle:off import.ordering.noEmptyLine
 import java.io.{FileNotFoundException, IOException}
 import java.nio.file.FileAlreadyExistsException
-import java.util.ConcurrentModificationException
+import java.util.{ConcurrentModificationException, UUID}
 
 import scala.collection.JavaConverters._
 
@@ -496,6 +496,11 @@ trait DeltaErrorsBase
       errorClass = "DELTA_DV_HISTOGRAM_DESERIALIZATON",
       messageParameters = Array.empty,
       pos = 0)
+  }
+
+  /** Throwable used when a null 'start' or 'end' is provided in CDC reads. */
+  def nullRangeBoundaryInCDCRead(): Throwable = {
+    new DeltaIllegalArgumentException(errorClass = "DELTA_CDC_READ_NULL_RANGE_BOUNDARY")
   }
 
   /**
@@ -1492,13 +1497,10 @@ trait DeltaErrorsBase
          """.stripMargin)
 
   def timestampGreaterThanLatestCommit(
-      userTimestamp: java.sql.Timestamp,
-      commitTs: java.sql.Timestamp,
-      timestampString: String): Throwable = {
-    new DeltaAnalysisException(
-      errorClass = "DELTA_TIMESTAMP_GREATER_THAN_COMMIT",
-      messageParameters = Array(s"$userTimestamp", s"$commitTs", timestampString)
-    )
+      userTs: java.sql.Timestamp,
+      lastCommitTs: java.sql.Timestamp,
+      maximumTsStr: String): Throwable = {
+    TemporallyUnstableInputException(userTs, lastCommitTs, maximumTsStr)
   }
 
   def timestampInvalid(expr: Expression): Throwable = {
@@ -1508,16 +1510,20 @@ trait DeltaErrorsBase
     )
   }
 
+  def versionInvalid(version: String): Throwable = {
+    new DeltaAnalysisException(
+      errorClass = "DELTA_VERSION_INVALID",
+      messageParameters = Array(s"$version")
+    )
+  }
+
   case class TemporallyUnstableInputException(
-      userTimestamp: java.sql.Timestamp,
-      commitTs: java.sql.Timestamp,
-      timestampString: String,
-      commitVersion: Long) extends AnalysisException(
-    s"""The provided timestamp: $userTimestamp is after the latest commit timestamp of
-         |$commitTs. If you wish to query this version of the table, please either provide
-         |the version with "VERSION AS OF $commitVersion" or use the exact timestamp
-         |of the last commit: "TIMESTAMP AS OF '$timestampString'".
-       """.stripMargin)
+      userTs: java.sql.Timestamp,
+      lastCommitTs: java.sql.Timestamp,
+      maximumTsStr: String)
+    extends DeltaAnalysisException(
+      errorClass = "DELTA_TIMESTAMP_GREATER_THAN_COMMIT",
+      messageParameters = Array(s"$userTs", s"$lastCommitTs", maximumTsStr))
 
   def restoreVersionNotExistException(
       userVersion: Long,
@@ -3721,6 +3727,25 @@ trait DeltaErrorsBase
     new DeltaUnsupportedOperationException(
       errorClass = "DELTA_UNSUPPORTED_CATALOG_OWNED_TABLE_CREATION",
       messageParameters = Array.empty)
+  }
+
+  def numRecordsMismatch(
+      operation: String,
+      numAddedRecords: Long,
+      numRemovedRecords: Long): Throwable = {
+    new DeltaIllegalStateException(
+      errorClass = "DELTA_NUM_RECORDS_MISMATCH",
+      messageParameters = Array(operation, numAddedRecords.toString, numRemovedRecords.toString)
+    )
+  }
+
+  def commandInvariantViolationException(
+      operation: String,
+      id: UUID): Throwable = {
+    new DeltaIllegalStateException(
+      errorClass = "DELTA_COMMAND_INVARIANT_VIOLATION",
+      messageParameters = Array(operation, id.toString)
+    )
   }
 }
 

@@ -119,9 +119,7 @@ object CatalogOwnedTableUtils {
   def getCatalogName(spark: SparkSession, identifier: CatalystTableIdentifier): Option[String] = {
     identifier.nameParts match {
       case spark.sessionState.analyzer.CatalogAndIdentifier(catalog, _) =>
-        if (catalog.getClass.getName ==
-            UCCommitCoordinatorBuilder.UNITY_CATALOG_CONNECTOR_CLASS
-        ) {
+        if (catalog.getClass.getName == UCCommitCoordinatorBuilder.UNITY_CATALOG_CONNECTOR_CLASS) {
           // UC is the current commit coordinator.
           Some("unity-catalog")
         } else {
@@ -571,6 +569,20 @@ object CoordinatedCommitsUtils extends DeltaLogging {
    */
   def getExplicitICTConfigurations(properties: Map[String, String]): Map[String, String] = {
     properties.filter { case (k, _) => ICT_TABLE_PROPERTY_KEYS.contains(k) }
+  }
+
+  /**
+   * Fetches the SparkSession default configurations for ICT. The `withDefaultKey`
+   * flag controls whether the keys in the returned map should have the default prefix or not.
+   */
+  def getDefaultICTConfigurations(
+      spark: SparkSession, withDefaultKey: Boolean = false): Map[String, String] = {
+    ICT_TABLE_PROPERTY_CONFS.flatMap { conf =>
+      spark.conf.getOption(conf.defaultTablePropertyKey).map { value =>
+        val finalKey = if (withDefaultKey) conf.defaultTablePropertyKey else conf.key
+        finalKey -> value
+      }
+    }.toMap
   }
 
   /**
